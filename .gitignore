@@ -8,3 +8,4 @@ photo_arch/
 TensorRT_trials/
 dynamic_fs/
 static_fs/
+.ipynb_checkpoints/
