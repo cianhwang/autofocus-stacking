@@ -2,6 +2,7 @@
 *.hdf5
 *.jpg
 *.png
+*.pth*
 awnet/
 imgs4paper/
 photo_arch/
