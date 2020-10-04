@@ -24,8 +24,12 @@ class focusLocNet(nn.Module):
         self.channel = _channel
         self.hidden_size = _hidden_size
         self.out_size = _out_size
-
-        self.block1 = convBlock(self.channel, 16, 5, 2)
+        
+        ##---------------0430 conv downward ------------
+        self.block0_0 = convBlock(self.channel, 4, 8, 8)
+        self.block0_1 = convBlock(4, 8, 3, 3)
+        
+        self.block1 = convBlock(8, 16, 5, 2)
         self.block2 = convBlock(16, 32, 5, 2)
         self.block3 = convBlock(32, 32, 5, 2)
         self.block4 = convBlock(32, 64, 3, 2, isBn = False)
@@ -50,6 +54,9 @@ class focusLocNet(nn.Module):
         
     def forward(self, x, l_prev, h_prev):
         batch_size = x.size(0)
+        ##---------------0430 conv downward ------------
+        x = self.block0_0(x)
+        x = self.block0_1(x)
         
         x = self.block1(x)
         x = self.block2(x) 
@@ -79,7 +86,7 @@ class focusLocNet(nn.Module):
         pos = mu + noise
 
         # bound between [-1, 1]
-        pos = torch.tanh(pos)
+        pos = torch.clamp(pos, -1, 1)
 
         log_pi = Normal(mu, self.std).log_prob(pos)
         log_pi = torch.sum(log_pi, dim=1)

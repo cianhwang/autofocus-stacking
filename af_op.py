@@ -42,6 +42,7 @@ class pixel_estimator_with_weights(nn.Module):
         x = F.leaky_relu(F.conv2d(x,self.w6,bias = self.b6,stride=1),0.1)
         x = F.conv2d(x,self.w7,bias = self.b7,stride=1)
         return x
+   
     
     
 def crop_patches(img, window= 1023, step = 512):
@@ -52,15 +53,51 @@ def crop_patches(img, window= 1023, step = 512):
             patches.append(img[i:i+window, j:j+window])
     return np.stack(patches)
 
+def dist_est(model, img, last_dist_map = None, last_move_steps = None):
+    img = np.pad(img, ((200, 200), (128, 128)), 'reflect')
+#     plt.imshow(img)
+#     plt.show()
+    H, W = img.shape
+    
+    patches = crop_patches(img)
+    patches = torch.from_numpy(patches).float().unsqueeze(1).cuda()
+
+    results = []
+    with torch.no_grad():
+        for i in range(patches.size(0)):
+            results.append(model(patches[i:i+1]))
+    results = torch.stack(results)
+
+    results = results.cpu().numpy()
+    results = results.squeeze()
+    
+    if last_dist_map is None:
+        last_dist_map = np.ones((H-512, W-512))
+
+    k = 0
+    n_img = np.zeros((H-512, W-512))
+    for i in range(0, H-512, 512):
+        for j in range(0, W-512, 512):
+            n_img[i:i+512, j:j+512] = results[k]
+            k += 1
+    n_img = np.clip(n_img, 0, 8)
+    
+    if last_move_steps is not None:
+        ## Focus direction: simple check
+        mapa = n_img - last_move_steps
+        mapb = -n_img - last_move_steps
+        diffa = np.abs(mapa) - last_dist_map
+        diffb = np.abs(mapb) - last_dist_map
+        mask = (np.abs(diffa) < np.abs(diffb)).astype(np.float64)
+        n_img = (n_img * mask + (1-mask) * (-n_img))
+
+    return n_img
 
 def gaf_func(img):
     assert img.max() <= 1.0
     assert img.shape == (2160, 3840)
     img = np.pad(img, ((200, 200), (128, 128)), 'reflect')
     H, W = img.shape
-    
-    model = torch.load('autofocus.pth')
-    model.eval()
     
     patches = crop_patches(img)
     patches = torch.from_numpy(patches).float().unsqueeze(1).cuda()
@@ -86,18 +123,36 @@ def gaf_func(img):
     n_img = np.clip(n_img, 0, 8)
     return n_img
 
-# In[10]:
+def gaf_func_tensor(Is):
+    batch_size = Is.size(0)
+    afs = []
+    for i in range(batch_size):
+        img = Is[i].cpu().numpy().transpose(1, 2, 0) * 127.5 + 127.5
+        img = img.astype(np.uint8)
+        gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)/255.0
+        gaf = gaf_func(gray_img)
+        gaf = (gaf-gaf.min())/(gaf.max()-gaf.min())*2.0-1.0
+        gaf = torch.from_numpy(gaf).float().unsqueeze(0).cuda()
+        print("gaf: ", gaf.size(), gaf.max(), gaf.min())
+        afs.append(gaf)
+        
+    afs = torch.stack(afs)
+    return afs
+        
+
+# # In[10]:
 
 
-if __name__=='__main__':  
+
+# if __name__=='__main__':  
        
-    img = cv2.imread('/home/qian/Desktop/600.jpg')
-    gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)/255.0
-    gaf = gaf_func(gray_img)
+#     img = cv2.imread('/home/qian/Desktop/600.jpg')
+#     gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)/255.0
+#     gaf = gaf_func(gray_img)
     
     
-#     np.save('static_fs/{}.npy'.format(image_name), gaf)
+# #     np.save('static_fs/{}.npy'.format(image_name), gaf)
     
-    plt.imshow(gaf)
-    plt.colorbar()
-    plt.show()
+#     plt.imshow(gaf)
+#     plt.colorbar()
+#     plt.show()

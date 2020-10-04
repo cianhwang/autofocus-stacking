@@ -13,14 +13,11 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-AWnet = pwc_5x5_sigmoid_bilinear.pwc_residual().cuda()
-AWnet.load_state_dict(torch.load('awnet/fs_34_all_0.03036882.pkl'))
-AWnet = AWnet.eval()
 
 import warnings
 warnings.filterwarnings("ignore")
 
-def fuseTwoImages(I, J_hat):
+def fuseTwoImages(AWnet, I, J_hat):
     with torch.no_grad():
         fusedTensor,warp,mask = AWnet(J_hat,I)
     return fusedTensor, warp, mask
@@ -61,7 +58,7 @@ def imshow(img):
     plt.show()
 
 
-def fuse(a, b):
+def image_fuse(AWnet, a, b):
     ''' 1920x1080x3 RGB channel image, range 0.0-1.0'''
 
     aa = patchize(a)
@@ -72,7 +69,7 @@ def fuse(a, b):
     ccs = []
     wws = []
     for i in range(4):
-        cc, ww, mask = fuseTwoImages(aa[i:i+1], bb[i:i+1])
+        cc, ww, mask = fuseTwoImages(AWnet, aa[i:i+1], bb[i:i+1])
         ccs.append(cc[0])
         wws.append(ww[0])
     cc = torch.stack(ccs)
@@ -83,7 +80,7 @@ def fuse(a, b):
     c = np.clip(c, 0., 1.)
     warp = np.clip(warp, 0., 1.)
 
-    return c, warp
+    return c#, warp
     
 
 if __name__ == '__main__':

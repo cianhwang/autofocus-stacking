@@ -37,7 +37,7 @@ def load_checkpoint(ckpt_path, model):
 def load_rlmodel():
     rlmodel = focusLocNet(0.17, 1, 256, 2).to("cuda:0")
     rlmodel = load_checkpoint('best_model', rlmodel)
-    return rl_model
+    return rlmodel
 
 
 def reset():
